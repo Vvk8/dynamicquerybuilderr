@@ -1,9 +1,10 @@
+//userlog.js
 const mongoose = require('mongoose');
 
 const userLogSchema = new mongoose.Schema({
     emp_id: {
-        type: String,
-        required: true
+        type: Number,
+        required: false
     },
     log_timestamp: {
         type: Date,
@@ -19,7 +20,7 @@ const userLogSchema = new mongoose.Schema({
     },
     log_files: {
         type: [String],
-        required: true
+        required: false
     },
     created_at: {
         type: Date,

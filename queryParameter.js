@@ -1,7 +1,5 @@
-//queryParameter.js
-
 require('dotenv').config();
-
+const { connectToMySQL } = require('./connection');
 const databases = {
     mysql: {
         host: process.env.DB_HOST || 'localhost',
@@ -15,6 +13,10 @@ const databases = {
             'mongodb+srv://admin:admin@database.c6jvwfo.mongodb.net/backendtask1?retryWrites=true&w=majority',
         dbName: process.env.MONGODB_DB_NAME || 'backendtask1',
     },
+};
+
+const database = {
+    querybuilder: 'backendtask1',
 };
 
 const tables = {
@@ -36,6 +38,33 @@ const conditions = {
     in: 'IN',
 };
 
+const conditionField = {
+    fieldValues: async (tableName) => {
+        try {
+            const { databases } = require('./queryParameter');
+            const mysqlConnection = await connectToMySQL();
+            const sql = `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '${databases.mysql.database}' AND TABLE_NAME = '${tableName}'`;
+
+            const columnNames = await new Promise((resolve, reject) => {
+                mysqlConnection.query(sql, (err, results) => {
+                    if (err) {
+                        console.error('Failed to fetch column names:', err);
+                        reject(err);
+                    } else {
+                        const columns = results.map((result) => result.COLUMN_NAME);
+                        resolve(columns);
+                    }
+                });
+            });
+
+            return columnNames;
+        } catch (error) {
+            console.error('Failed to fetch column names:', error);
+            throw error;
+        }
+    },
+};
+
 const queries = {
     // Select All
     selectAll: (tableName) => {
@@ -44,9 +73,51 @@ const queries = {
     },
 
     // Select by ID
-    selectById: (tableName, conditionField, conditionValue) => {
-        const sql = `SELECT * FROM ${tableName} WHERE ${conditionField} = ?`;
-        const params = [conditionValue];
+    // Select by condition
+    selectByCondition: (tableName, conditionField, conditionType, conditionValue) => {
+        let sql = `SELECT * FROM ${tableName} WHERE `;
+        let params = [];
+
+        // Adjust the SQL query based on the condition type
+        switch (conditionType) {
+            case 'equals':
+                sql += `${conditionField} = ?`;
+                params = [conditionValue];
+                break;
+            case 'notEqual':
+                sql += `${conditionField} <> ?`;
+                params = [conditionValue];
+                break;
+            case 'greaterThan':
+                sql += `${conditionField} > ?`;
+                params = [conditionValue];
+                break;
+            case 'lessThan':
+                sql += `${conditionField} < ?`;
+                params = [conditionValue];
+                break;
+            case 'greaterThanOrEqual':
+                sql += `${conditionField} >= ?`;
+                params = [conditionValue];
+                break;
+            case 'lessThanOrEqual':
+                sql += `${conditionField} <= ?`;
+                params = [conditionValue];
+                break;
+            case 'like':
+                sql += `${conditionField} LIKE ?`;
+                params = [`%${conditionValue}%`];
+                break;
+            case 'in':
+                const values = conditionValue.split(',');
+                const placeholders = values.map(() => '?').join(',');
+                sql += `${conditionField} IN (${placeholders})`;
+                params = values;
+                break;
+            default:
+                throw new Error('Invalid condition type');
+        }
+
         return { sql, params };
     },
 
@@ -71,62 +142,4 @@ const queries = {
     },
 };
 
-module.exports = { queries, databases, conditions, collections, tables };
-
-
-
-
-/*
-,
-    // Multiple Search
-    multipleSearch: (tableName, conditionField, conditionValues) => {
-        const placeholders = conditionValues.map(() => '?').join(',');
-        const sql = `SELECT * FROM ${tableName} WHERE ${conditionField} IN (${placeholders})`;
-        return { sql, params: conditionValues };
-    },
-
-    // Single Insert
-    singleInsert: (tableName, data) => {
-        const sql = `INSERT INTO ${tableName} SET ?`;
-        return { sql, params: data };
-    },
-
-    // Multiple Insert
-    multipleInsert: (tableName, data) => {
-        const sql = `INSERT INTO ${tableName} (emp_id, user_name, email) VALUES ?`;
-        return { sql, params: [data] };
-    },
-
-    // Single Update
-    singleUpdate: (tableName, data, conditionField, conditionValue) => {
-        const sql = `UPDATE ${tableName} SET ? WHERE ${conditionField} = ?`;
-        return { sql, params: [data, conditionValue] };
-    },
-
-    // Multiple Update
-    multipleUpdate: (tableName, data, conditionField) => {
-        const updateValues = data.map((item) => `(${item.emp_id}, '${item.user_name}', '${item.email}')`).join(',');
-        const sql = `INSERT INTO ${tableName} (emp_id, user_name, email) VALUES ${updateValues} ON DUPLICATE KEY UPDATE user_name = VALUES(user_name), email = VALUES(email)`;
-        return { sql, params: [] };
-    },
-
-    // Single Delete
-    singleDelete: (tableName, conditionField, conditionValue) => {
-        const sql = `DELETE FROM ${tableName} WHERE ${conditionField} = ?`;
-        return { sql, params: [conditionValue] };
-    },
-    // Multiple Delete
-    multipleDelete: (tableName, conditionField, conditionValues) => {
-        const placeholders = conditionValues.map(() => '?').join(',');
-        const sql = `DELETE FROM ${tableName} WHERE ${conditionField} IN (${placeholders})`;
-        return { sql, params: conditionValues };
-    },
-    // Single Search
-    singleSearch: (tableName, conditionField, conditionValue) => {
-        const sql = `SELECT * FROM ${tableName} WHERE ${conditionField} = ?`;
-        return { sql, params: [conditionValue] };
-    }
-
-
-
-*/
+module.exports = { queries, conditionField, databases, conditions, collections, tables };
